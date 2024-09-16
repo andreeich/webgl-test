@@ -1,101 +1,149 @@
-let gl;
-let shaderProgram;
+class WebGLApp {
+  constructor(canvasId) {
+    this.canvas = document.getElementById(canvasId);
+    this.gl = this.initWebGL(this.canvas);
+    this.shaderProgram = null;
+    this.buffers = {};
+    this.attributes = {};
+  }
 
-const vsSource = `
-    attribute vec2 a_Position;
-    attribute vec3 a_Color;
-    varying vec3 v_Color;
-    void main() {
-        v_Color = a_Color;
-        gl_Position = vec4(a_Position, 0.0, 1.0);
+  initWebGL(canvas) {
+    let gl = null;
+    try {
+      gl =
+        canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+    } catch (e) {
+      console.error(
+        "Unable to initialize WebGL. Your browser may not support it."
+      );
     }
-`;
+    return gl;
+  }
 
-const fsSource = `
-    precision mediump float;
-    varying vec3 v_Color;
-    void main() {
-        gl_FragColor = vec4(v_Color, 1.0);
+  init() {
+    if (this.gl) {
+      this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
+      this.gl.enable(this.gl.DEPTH_TEST);
+      this.gl.depthFunc(this.gl.LEQUAL);
+      this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+
+      this.initShaders();
+      this.initBuffers();
     }
-`;
-
-function start() {
-  const canvas = document.getElementById("glcanvas");
-  gl = initWebGL(canvas);
-  if (gl) {
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
-    gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LEQUAL);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.viewport(0, 0, canvas.width, canvas.height);
-    initShaders();
-    initBuffer();
   }
-}
 
-function initWebGL(canvas) {
-  gl = null;
-  try {
-    gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
-  } catch (e) {
-    if (!gl) {
-      alert("Unable to initialize WebGL. Your browser may not support it.");
-    }
-    gl = null;
-  }
-  return gl;
-}
+  initShaders() {
+    const vsSource = `
+          attribute vec2 a_Position;
+          attribute vec3 a_Color;
+          varying vec3 v_Color;
+          void main() {
+              v_Color = a_Color;
+              gl_Position = vec4(a_Position, 0.0, 1.0);
+          }
+      `;
 
-function initShaders() {
-  const fragmentShader = getShader(gl, "shader-fs", fsSource);
-  const vertexShader = getShader(gl, "shader-vs", vsSource);
-  shaderProgram = gl.createProgram();
-  gl.attachShader(shaderProgram, vertexShader);
-  gl.attachShader(shaderProgram, fragmentShader);
-  gl.linkProgram(shaderProgram);
-  if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-    alert("Unable to initialize the shader program.");
-  }
-  gl.useProgram(shaderProgram);
-}
+    const fsSource = `
+          precision mediump float;
+          varying vec3 v_Color;
+          void main() {
+              gl_FragColor = vec4(v_Color, 1.0);
+          }
+      `;
 
-function getShader(gl, id, source) {
-  let shader;
-  if (id === "shader-fs") {
-    shader = gl.createShader(gl.FRAGMENT_SHADER);
-  } else if (id === "shader-vs") {
-    shader = gl.createShader(gl.VERTEX_SHADER);
-  } else {
-    return null;
-  }
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    alert(
-      `An error occurred compiling the shaders: ${gl.getShaderInfoLog(shader)}`
+    const vertexShader = this.compileShader(vsSource, this.gl.VERTEX_SHADER);
+    const fragmentShader = this.compileShader(
+      fsSource,
+      this.gl.FRAGMENT_SHADER
     );
-    return null;
+
+    this.shaderProgram = this.gl.createProgram();
+    this.gl.attachShader(this.shaderProgram, vertexShader);
+    this.gl.attachShader(this.shaderProgram, fragmentShader);
+    this.gl.linkProgram(this.shaderProgram);
+
+    if (!this.gl.getProgramParameter(this.shaderProgram, this.gl.LINK_STATUS)) {
+      console.error("Unable to initialize the shader program.");
+      return;
+    }
+
+    this.gl.useProgram(this.shaderProgram);
+
+    this.attributes.position = this.gl.getAttribLocation(
+      this.shaderProgram,
+      "a_Position"
+    );
+    this.attributes.color = this.gl.getAttribLocation(
+      this.shaderProgram,
+      "a_Color"
+    );
   }
-  return shader;
+
+  compileShader(source, type) {
+    const shader = this.gl.createShader(type);
+    this.gl.shaderSource(shader, source);
+    this.gl.compileShader(shader);
+
+    if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+      console.error(
+        `An error occurred compiling the shaders: ${this.gl.getShaderInfoLog(
+          shader
+        )}`
+      );
+      this.gl.deleteShader(shader);
+      return null;
+    }
+
+    return shader;
+  }
+
+  initBuffers() {
+    const triangleVertices = [
+      -0.8, -0.5, 1.0, 0.0, 0.0, 0.0, 0.8, 0.0, 1.0, 0.0, 0.8, -0.5, 0.0, 0.0,
+      1.0,
+    ];
+
+    this.buffers.triangle = this.gl.createBuffer();
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.triangle);
+    this.gl.bufferData(
+      this.gl.ARRAY_BUFFER,
+      new Float32Array(triangleVertices),
+      this.gl.STATIC_DRAW
+    );
+  }
+
+  draw() {
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.triangle);
+
+    this.gl.vertexAttribPointer(
+      this.attributes.position,
+      2,
+      this.gl.FLOAT,
+      false,
+      5 * 4,
+      0
+    );
+    this.gl.vertexAttribPointer(
+      this.attributes.color,
+      3,
+      this.gl.FLOAT,
+      false,
+      5 * 4,
+      2 * 4
+    );
+
+    this.gl.enableVertexAttribArray(this.attributes.position);
+    this.gl.enableVertexAttribArray(this.attributes.color);
+
+    this.gl.drawArrays(this.gl.TRIANGLES, 0, 3);
+  }
 }
 
-function initBuffer() {
-  const a_Position = gl.getAttribLocation(shaderProgram, "a_Position");
-  const a_Color = gl.getAttribLocation(shaderProgram, "a_Color");
-  gl.enableVertexAttribArray(a_Position);
-  gl.enableVertexAttribArray(a_Color);
-  const triangle_vertex = [
-    -0.8, -0.5, 1.0, 0.0, 0.0, 0.0, 0.8, 0.0, 1.0, 0.0, 0.8, -0.5, 0.0, 0.0,
-    1.0,
-  ];
-  const TRIANGLE_VERTEX = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, TRIANGLE_VERTEX);
-  gl.bufferData(
-    gl.ARRAY_BUFFER,
-    new Float32Array(triangle_vertex),
-    gl.STATIC_DRAW
-  );
-  gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, 5 * 4, 0);
-  gl.vertexAttribPointer(a_Color, 3, gl.FLOAT, false, 5 * 4, 2 * 4);
-  gl.drawArrays(gl.TRIANGLES, 0, 3);
+// Usage
+function start() {
+  const app = new WebGLApp("glcanvas");
+  app.init();
+  app.draw();
 }
