@@ -45,8 +45,8 @@ class WebGLApp {
    */
   init() {
     if (this.gl) {
-      // Set clear color to black, fully opaque
-      this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
+      // Set clear color to white, fully opaque
+      this.gl.clearColor(1.0, 1.0, 1.0, 1.0);
       // Enable depth testing
       this.gl.enable(this.gl.DEPTH_TEST);
       // Near things obscure far things
@@ -66,21 +66,23 @@ class WebGLApp {
   initShaders() {
     // Vertex shader source code
     const vsSource = `
-          attribute vec2 a_Position;
-          attribute vec3 a_Color;
-          varying vec3 v_Color;
+          attribute vec2 position;
+          attribute vec3 color;
+          varying vec3 vColor;
+
           void main() {
-              v_Color = a_Color;
-              gl_Position = vec4(a_Position, 0.0, 1.0);
+              vColor = color;
+              gl_Position = vec4(position, 0.0, 1.0);
           }
       `;
 
     // Fragment shader source code
     const fsSource = `
           precision mediump float;
-          varying vec3 v_Color;
+          varying vec3 vColor;
+
           void main() {
-              gl_FragColor = vec4(v_Color, 1.0);
+              gl_FragColor = vec4(vColor, 1.0);
           }
       `;
 
@@ -112,11 +114,11 @@ class WebGLApp {
     // Get attribute locations
     this.attributes.position = this.gl.getAttribLocation(
       this.shaderProgram,
-      "a_Position"
+      "position"
     );
     this.attributes.color = this.gl.getAttribLocation(
       this.shaderProgram,
-      "a_Color"
+      "color"
     );
   }
 
@@ -152,36 +154,35 @@ class WebGLApp {
    * Initialize buffers for the triangle
    */
   initBuffers() {
-    // Define vertices for the triangle
-    // Format: x, y, r, g, b (position and color for each vertex)
-    const triangleVertices = [
-      -0.8,
-      -0.5,
-      1.0,
-      0.0,
-      0.0, // Left vertex (red)
-      0.0,
-      0.8,
-      0.0,
-      1.0,
-      0.0, // Top vertex (green)
-      0.8,
-      -0.5,
-      0.0,
-      0.0,
-      1.0, // Right vertex (blue)
-    ];
+    // Define vertices position for the triangle
+    // Format: x, y (position for each vertex)
+    const vertexData = [0, 1, -1, -1, 1, -1];
 
-    // Create a buffer for the triangle's vertices
-    this.buffers.triangle = this.gl.createBuffer();
+    // Define vertices color for the triangle
+    // Format: r, g, b (color for each vertex)
+    const colorData = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 
-    // Bind the buffer
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.triangle);
+    // Create a buffer for the triangle's vertices position
+    this.buffers.position = this.gl.createBuffer();
+    this.buffers.color = this.gl.createBuffer();
 
-    // Pass the vertices data to the buffer
+    // Bind the buffer for the triangle's vertices position
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.position);
+
+    // Pass the vertices data to the position buffer
     this.gl.bufferData(
       this.gl.ARRAY_BUFFER,
-      new Float32Array(triangleVertices),
+      new Float32Array(vertexData),
+      this.gl.STATIC_DRAW
+    );
+
+    // Bind the buffer for the triangle's vertices color
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.color);
+
+    // Pass the vertices data to the color buffer
+    this.gl.bufferData(
+      this.gl.ARRAY_BUFFER,
+      new Float32Array(colorData),
       this.gl.STATIC_DRAW
     );
   }
@@ -193,8 +194,8 @@ class WebGLApp {
     // Clear the canvas
     this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
 
-    // Bind the vertex buffer
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.triangle);
+    // Bind the vertex position buffer
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.position);
 
     // Set up the position attribute
     this.gl.vertexAttribPointer(
@@ -202,9 +203,12 @@ class WebGLApp {
       2, // 2 components per vertex (x, y)
       this.gl.FLOAT, // Data type
       false, // Don't normalize
-      5 * 4, // Stride (5 floats per vertex, 4 bytes each)
+      0, // Stride
       0 // Offset
     );
+
+    // Bind the vertex color buffer
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.buffers.color);
 
     // Set up the color attribute
     this.gl.vertexAttribPointer(
@@ -212,8 +216,8 @@ class WebGLApp {
       3, // 3 components per color (r, g, b)
       this.gl.FLOAT, // Data type
       false, // Don't normalize
-      5 * 4, // Stride (5 floats per vertex, 4 bytes each)
-      2 * 4 // Offset (2 floats for position, 4 bytes each)
+      0, // Stride
+      0 // Offset
     );
 
     // Enable the attributes
