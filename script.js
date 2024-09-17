@@ -19,6 +19,8 @@ class WebGLApp {
     this.buffers = {};
     // Object to store attribute locations
     this.attributes = {};
+    // Object matrix for transformations
+    this.matrix = mat4.create();
   }
 
   /**
@@ -66,13 +68,14 @@ class WebGLApp {
   initShaders() {
     // Vertex shader source code
     const vsSource = `
-          attribute vec2 position;
+          attribute vec3 position;
           attribute vec3 color;
           varying vec3 vColor;
+          uniform mat4 matrix;
 
           void main() {
               vColor = color;
-              gl_Position = vec4(position, 0.0, 1.0);
+              gl_Position = matrix * vec4(position, 1.0);
           }
       `;
 
@@ -120,6 +123,10 @@ class WebGLApp {
       this.shaderProgram,
       "color"
     );
+    this.attributes.matrix = this.gl.getUniformLocation(
+      this.shaderProgram,
+      "matrix"
+    );
   }
 
   /**
@@ -151,16 +158,44 @@ class WebGLApp {
   }
 
   /**
-   * Initialize buffers for the triangle
+   * Initialize buffers for the cube
    */
   initBuffers() {
-    // Define vertices position for the triangle
-    // Format: x, y (position for each vertex)
-    const vertexData = [0, 1, -1, -1, 1, -1];
+    // Define vertices position for the cube
+    // Format: x, y, z (position for each vertex)
+    const vertexData = [
+      // Front face
+      -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0,
+      // Back face
+      -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, -1.0, -1.0,
+      // Top face
+      -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, -1.0,
+      // Bottom face
+      -1.0, -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, 1.0, -1.0, -1.0, 1.0,
+      // Right face
+      1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0,
+      // Left face
+      -1.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, -1.0,
+    ];
 
-    // Define vertices color for the triangle
+    // Define vertices color for the cube
     // Format: r, g, b (color for each vertex)
-    const colorData = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+    const colorData = [
+      [1.0, 0.0, 0.0], // Front face (red)
+      [0.0, 1.0, 0.0], // Back face (green)
+      [0.0, 0.0, 1.0], // Top face (blue)
+      [1.0, 1.0, 0.0], // Bottom face (yellow)
+      [1.0, 0.0, 1.0], // Right face (magenta)
+      [0.0, 1.0, 1.0], // Left face (cyan)
+    ];
+
+    let colors = [];
+
+    for (let i = 0; i < 6; i++) {
+      const c = colorData[i];
+      // Each face consists of 2 triangles, and each triangle has 3 vertices
+      colors = colors.concat(c, c, c, c);
+    }
 
     // Create a buffer for the triangle's vertices position
     this.buffers.position = this.gl.createBuffer();
@@ -182,7 +217,31 @@ class WebGLApp {
     // Pass the vertices data to the color buffer
     this.gl.bufferData(
       this.gl.ARRAY_BUFFER,
-      new Float32Array(colorData),
+      new Float32Array(colors.flat()),
+      this.gl.STATIC_DRAW
+    );
+
+    // Define the indices of the cube (which vertices to use for each triangle)
+    const indexData = [
+      // Front face
+      0, 1, 2, 0, 2, 3,
+      // Back face
+      4, 5, 6, 4, 6, 7,
+      // Top face
+      8, 9, 10, 8, 10, 11,
+      // Bottom face
+      12, 13, 14, 12, 14, 15,
+      // Right face
+      16, 17, 18, 16, 18, 19,
+      // Left face
+      20, 21, 22, 20, 22, 23,
+    ];
+
+    this.buffers.indices = this.gl.createBuffer();
+    this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
+    this.gl.bufferData(
+      this.gl.ELEMENT_ARRAY_BUFFER,
+      new Uint16Array(indexData),
       this.gl.STATIC_DRAW
     );
   }
@@ -200,7 +259,7 @@ class WebGLApp {
     // Set up the position attribute
     this.gl.vertexAttribPointer(
       this.attributes.position,
-      2, // 2 components per vertex (x, y)
+      3, // 3 components per vertex (x, y, z)
       this.gl.FLOAT, // Data type
       false, // Don't normalize
       0, // Stride
@@ -224,9 +283,27 @@ class WebGLApp {
     this.gl.enableVertexAttribArray(this.attributes.position);
     this.gl.enableVertexAttribArray(this.attributes.color);
 
-    // Draw the triangle
-    this.gl.drawArrays(this.gl.TRIANGLES, 0, 3);
+    mat4.scale(this.matrix, this.matrix, [0.5, 0.5, 0.5]);
+
+    this.gl.uniformMatrix4fv(this.attributes.matrix, false, this.matrix);
+
+    this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.buffers.indices);
+
+    // Draw the cube using element indices
+    this.gl.drawElements(this.gl.TRIANGLES, 36, this.gl.UNSIGNED_SHORT, 0);
   }
+
+  /**
+   * Animate the cube
+   */
+  animate = () => {
+    requestAnimationFrame(this.animate);
+    mat4.rotateZ(this.matrix, this.matrix, Math.PI / 100);
+    mat4.rotateX(this.matrix, this.matrix, Math.PI / 100);
+    mat4.rotateY(this.matrix, this.matrix, Math.PI / 100);
+    this.gl.uniformMatrix4fv(this.attributes.matrix, false, this.matrix);
+    this.gl.drawElements(this.gl.TRIANGLES, 36, this.gl.UNSIGNED_SHORT, 0);
+  };
 }
 
 // Usage
@@ -237,4 +314,6 @@ function start() {
   app.init();
   // Draw the scene
   app.draw();
+  // Animate the cube
+  app.animate();
 }
