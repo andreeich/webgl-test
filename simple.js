@@ -1,23 +1,12 @@
+// import "./gl-matrix-min.js";
+// const { mat2, mat2d, mat4, mat3, quat, quat2, vec2, vec3, vec4 } = glMatrix;
+
 const canvas = document.querySelector("canvas");
 const gl = canvas.getContext("webgl");
 
 if (!gl) {
   throw new Error("WebGL is not supported");
 }
-
-// vertexData = [...]
-
-// create buffer
-// load vertexData into buffer
-
-// create vertex shader
-// create fragment shader
-// create program
-// attach shaders to program
-
-// enable vertex attributes
-
-// draw
 
 const vertexData = [
   0,
@@ -58,9 +47,11 @@ gl.shaderSource(
   attribute vec3 position;
   attribute vec3 color;
   varying vec3 vColor;
+  uniform mat4 matrix;
+
   void main() {
     vColor = color;
-    gl_Position = vec4(position, 1);
+    gl_Position = matrix * vec4(position, 1);
   }
   `
 );
@@ -95,4 +86,25 @@ gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
 gl.vertexAttribPointer(colorLocation, 3, gl.FLOAT, false, 0, 0);
 
 gl.useProgram(program);
+
+const uniformLocations = {
+  matrix: gl.getUniformLocation(program, "matrix"),
+};
+
+const matrix = mat4.create();
+mat4.translate(matrix, matrix, [0.2, 0.3, 0]);
+mat4.scale(matrix, matrix, [0.5, 0.4, 0]);
+
+function animate() {
+  requestAnimationFrame(animate);
+  mat4.rotateZ(matrix, matrix, Math.PI / 100);
+  mat4.rotateX(matrix, matrix, Math.PI / 100);
+  gl.uniformMatrix4fv(uniformLocations.matrix, false, matrix);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+gl.uniformMatrix4fv(uniformLocations.matrix, false, matrix);
+
 gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+animate();
